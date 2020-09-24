@@ -27,6 +27,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.observe
 import androidx.paging.LoadState
+import androidx.paging.LoadStateAdapter
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -51,10 +52,11 @@ class SearchRepositoriesActivity : AppCompatActivity() {
     private var searchJob: Job? = null
 
     private fun search(query: String) {
-        // Make sure we cancel the previous job before creating a new one
+        // Make sure we cancel the previous job before creating a new on
         searchJob?.cancel()
+
         searchJob = lifecycleScope.launch {
-            viewModel.searchRepo(query).collectLatest {
+            viewModel.searchRepo(query)?.collectLatest {
                 adapter.submitData(it)
             }
         }
@@ -67,12 +69,13 @@ class SearchRepositoriesActivity : AppCompatActivity() {
         setContentView(view)
 
         // get the view model
-        viewModel = ViewModelProvider(this, Injection.provideViewModelFactory(this))
+        viewModel = ViewModelProvider(this, Injection.provideViewModelFactory())
                 .get(SearchRepositoriesViewModel::class.java)
 
         // add dividers between RecyclerView's row items
         val decoration = DividerItemDecoration(this, DividerItemDecoration.VERTICAL)
         binding.list.addItemDecoration(decoration)
+
 
         initAdapter()
         val query = savedInstanceState?.getString(LAST_SEARCH_QUERY) ?: DEFAULT_QUERY
@@ -95,10 +98,8 @@ class SearchRepositoriesActivity : AppCompatActivity() {
         adapter.addLoadStateListener { loadState ->
             // Only show the list if refresh succeeds.
             binding.list.isVisible = loadState.source.refresh is LoadState.NotLoading
-
             // Show loading spinner during initial load or refresh.
             binding.progressBar.isVisible = loadState.source.refresh is LoadState.Loading
-
             // Show the retry state if initial load or refresh fails.
             binding.retryButton.isVisible = loadState.source.refresh is LoadState.Error
 
@@ -107,10 +108,13 @@ class SearchRepositoriesActivity : AppCompatActivity() {
                     ?: loadState.source.prepend as? LoadState.Error
                     ?: loadState.append as? LoadState.Error
                     ?: loadState.prepend as? LoadState.Error
-
-            errorState?.let { Toast.makeText(this,
-                    "\uD83D\uDE28 Wooops ${it.error}",
-                    Toast.LENGTH_LONG).show() }
+            errorState?.let {
+                Toast.makeText(
+                        this,
+                        "\uD83D\uDE28 Wooops ${it.error.localizedMessage}",
+                        Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 
@@ -133,7 +137,6 @@ class SearchRepositoriesActivity : AppCompatActivity() {
                 false
             }
         }
-
         // Scroll to top when the list is refreshed from network.
         lifecycleScope.launch {
             adapter.loadStateFlow
@@ -142,12 +145,15 @@ class SearchRepositoriesActivity : AppCompatActivity() {
                     // Only react to cases where REFRESH completes i.e., NotLoading.
                     .filter { it.refresh is LoadState.NotLoading }
                     .collect { binding.list.scrollToPosition(0) }
+
+
         }
     }
 
     private fun updateRepoListFromInput() {
         binding.searchRepo.text.trim().let {
             if (it.isNotEmpty()) {
+//                binding.list.scrollToPosition(0)
                 search(it.toString())
             }
         }
